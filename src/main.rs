@@ -1,4 +1,5 @@
-use  wiredtiger::{Connection};
+use wiredtiger::Connection;
+
 fn main() {
     let conn = Connection::open("/tmp/wttest", "create").unwrap();
     let session = conn.create_session().unwrap();

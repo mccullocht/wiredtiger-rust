@@ -1,32 +1,25 @@
 mod wiredtiger;
 
-use wiredtiger::{
-    WT_CONNECTION,
-    WT_SESSION,
-    WT_CURSOR,
-    WT_EVENT_HANDLER,
-};
-use wiredtiger::{
-    wiredtiger_open,
-    wiredtiger_strerror,
-};
 use wiredtiger::WT_NOTFOUND;
+use wiredtiger::{wiredtiger_open, wiredtiger_strerror};
+use wiredtiger::{WT_CONNECTION, WT_CURSOR, WT_EVENT_HANDLER, WT_SESSION};
 
-use std::ffi::{ CString, CStr };
-use std::ptr;
+use std::ffi::{CStr, CString};
 use std::io;
 use std::os::raw;
+use std::ptr;
 
 fn get_error(result: i32) -> io::Error {
     let err_msg = unsafe { CStr::from_ptr(wiredtiger_strerror(result)) };
-    return io::Error::other(err_msg.to_str().unwrap().to_owned());
+    io::Error::other(err_msg.to_str().unwrap().to_owned())
 }
 
 fn make_result<T>(result: i32, value: T) -> Result<T, io::Error> {
-    if result != 0 {
-        return Err(get_error(result));
+    if result == 0 {
+        Ok(value)
+    } else {
+        Err(get_error(result))
     }
-    return Ok(value);
 }
 
 pub struct Connection {
@@ -104,7 +97,7 @@ impl Session {
                 &mut cursor,
             );
         }
-        make_result(result, Cursor{cursor})
+        make_result(result, Cursor { cursor })
     }
 }
 
@@ -113,22 +106,15 @@ impl Cursor {
         let key: *mut WT_SESSION = ptr::null_mut();
         let val: *mut WT_SESSION = ptr::null_mut();
         unsafe {
-            self.cursor.as_ref().unwrap().reset.unwrap()(
-                self.cursor as *mut WT_CURSOR
-            );
+            self.cursor.as_ref().unwrap().reset.unwrap()(self.cursor as *mut WT_CURSOR);
             loop {
-                let result = self.cursor.as_ref().unwrap().next.unwrap()(
-                    self.cursor as *mut WT_CURSOR
-                );
-                if result != 0 { break };
-                self.cursor.as_ref().unwrap().get_key.unwrap()(
-                    self.cursor as *mut WT_CURSOR,
-                    &key
-                );
-                self.cursor.as_ref().unwrap().get_key.unwrap()(
-                    self.cursor as *mut WT_CURSOR,
-                    &val
-                );
+                let result =
+                    self.cursor.as_ref().unwrap().next.unwrap()(self.cursor as *mut WT_CURSOR);
+                if result != 0 {
+                    break;
+                };
+                self.cursor.as_ref().unwrap().get_key.unwrap()(self.cursor as *mut WT_CURSOR, &key);
+                self.cursor.as_ref().unwrap().get_key.unwrap()(self.cursor as *mut WT_CURSOR, &val);
             }
         }
     }
@@ -146,9 +132,7 @@ impl Cursor {
                 self.cursor as *mut WT_CURSOR,
                 cval.as_ptr(),
             );
-            result = self.cursor.as_ref().unwrap().insert.unwrap()(
-                self.cursor as *mut WT_CURSOR
-            );
+            result = self.cursor.as_ref().unwrap().insert.unwrap()(self.cursor as *mut WT_CURSOR);
         }
         make_result(result, ())
     }
@@ -162,13 +146,11 @@ impl Cursor {
                 self.cursor as *mut WT_CURSOR,
                 ckey.as_ptr(),
             );
-            result = self.cursor.as_ref().unwrap().search.unwrap()(
-                self.cursor as *mut WT_CURSOR
-            );
+            result = self.cursor.as_ref().unwrap().search.unwrap()(self.cursor as *mut WT_CURSOR);
             if result == WT_NOTFOUND {
                 return Ok(None);
             }
-            if result !=0 {
+            if result != 0 {
                 return Err(get_error(result));
             }
             result = self.cursor.as_ref().unwrap().get_value.unwrap()(

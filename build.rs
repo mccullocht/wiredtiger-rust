@@ -1,69 +1,66 @@
 use std::env;
+use std::fs::remove_file;
 use std::path::PathBuf;
 use std::process::Command;
-use std::fs::{create_dir, remove_dir_all, remove_file};
 
 const GITHUB_WT_TAGS_URI: &str = "https://github.com/wiredtiger/wiredtiger/archive/refs/tags";
 const WT_VERSION: &str = "11.2.0";
-const THIRD_PARTY_DIR: &str = "third_party";
 
 fn download_source() {
-    remove_dir_all(THIRD_PARTY_DIR).expect("Failed to remove third_party directory");
-    create_dir(THIRD_PARTY_DIR).expect("Failed to create third_party directory");
-
     let uri = format!("{GITHUB_WT_TAGS_URI}/{WT_VERSION}.tar.gz");
-    let dest = format!("./{THIRD_PARTY_DIR}");
     Command::new("wget")
         .arg(uri)
         .arg("-P")
-        .arg(dest)
+        .arg(env::var("OUT_DIR").unwrap())
         .output()
         .expect("Failed to download source");
 }
 
 fn extract_source() {
+    let out_dir = env::var("OUT_DIR").unwrap();
     Command::new("tar")
         .arg("-xvf")
-        .arg(format!("{THIRD_PARTY_DIR}/{WT_VERSION}.tar.gz"))
+        .arg(format!("{out_dir}/{WT_VERSION}.tar.gz"))
         .arg("-C")
-        .arg(THIRD_PARTY_DIR)
+        .arg(out_dir)
         .output()
         .expect("Failed to extract source");
 }
 
 fn build_wt() {
-    let src_dir = format!("{THIRD_PARTY_DIR}/wiredtiger-{WT_VERSION}");
-    let out_dir = format!("{src_dir}/build");
+    let src_dir = format!("{}/wiredtiger-{WT_VERSION}", env::var("OUT_DIR").unwrap());
+    let build_dir = format!("{src_dir}/build");
     Command::new("cmake")
         .arg("-DENABLE_STATIC=1")
         .arg("-S")
         .arg(src_dir)
         .arg("-B")
-        .arg(out_dir.clone())
+        .arg(build_dir.clone())
         .output()
         .expect("Failed to generate build files");
     Command::new("cmake")
         .arg("--build")
-        .arg(out_dir)
+        .arg(build_dir)
         .arg("-j16")
         .output()
         .expect("Failed to build WiredTiger");
 }
 
 fn cleanup() {
-    let path =format!("{THIRD_PARTY_DIR}/{WT_VERSION}.tar.gz");
-    remove_file(path).expect("Failed to cleanup"); 
+    let path = format!("{}/{WT_VERSION}.tar.gz", env::var("OUT_DIR").unwrap());
+    remove_file(path).expect("Failed to cleanup");
 }
 
 fn main() {
-    /*
     download_source();
     extract_source();
     build_wt();
     cleanup();
-    */
 
-    let wt_build_dir = format!("{THIRD_PARTY_DIR}/wiredtiger-{WT_VERSION}/build");
+    let wt_build_dir = format!(
+        "{}/wiredtiger-{WT_VERSION}/build",
+        env::var("OUT_DIR").unwrap()
+    );
 
     // Tell cargo to look for shared libraries in the specified directory
     println!("cargo:rustc-link-search={wt_build_dir}");
